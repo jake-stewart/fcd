@@ -1,0 +1,2 @@
+# fcd
+Fast Change Directory
