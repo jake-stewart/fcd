@@ -2,7 +2,8 @@
 Fast Change Directory.
 Fuzzy search through a list of your most used files and directories. Selecting a file will edit it, while selecting a directory will CD to it. I find this useful since 99% of the time I am navigating to the same directories and files at work.
 
-<img width="603" alt="fcd" src="https://user-images.githubusercontent.com/83528263/160432459-ec56d423-1982-435d-8332-732189eaa9da.png">
+<img width="603" alt="fcd" src="https://user-images.githubusercontent.com/83528263/160433582-e6ddacab-0219-4b73-a959-a0ed17c03ade.png">
+
 
 ## zsh setup
 
