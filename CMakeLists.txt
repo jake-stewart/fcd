@@ -10,7 +10,7 @@ include_directories(include)
 file(GLOB SOURCES "src/*.cpp")
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-SET(CMAKE_CXX_STANDARD 23)
+SET(CMAKE_CXX_STANDARD 20)
 
 add_executable(fcd ${SOURCES})
 
