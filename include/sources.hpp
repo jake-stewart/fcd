@@ -7,15 +7,24 @@
 class Sources
 {
 private:
-    std::vector<Source*> m_sources;
-    int                  m_largest_source_length;
+    std::vector<Source> m_sources;
+    bool                m_has_heuristic   = false;
+    int                 m_last_query_size = 0;
+
+    void    resetHeuristics();
 
 public:
+    void    updateHistory(int selected_index);
     void    sort(std::string query);
     size_t  size();
-    Source* get(int idx);
+    Source& get(int idx);
     bool    read(char *src_path);
-    int     get_largest_source_length();
+    int     getLargestSourceLength();
+    bool    hasHeuristic();
+    void    push_back(Source& source);
+
+    // auto    begin() { return m_sources.begin(); }
+    // auto    end() { return m_sources.end(); }
 };
 
 #endif

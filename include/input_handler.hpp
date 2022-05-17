@@ -9,17 +9,21 @@ class InputHandler
 {
 private:
     char m_query[MAX_QUERY_SIZE];
-    int  m_query_size = 0;
-    int  m_offset     = 0;
-    bool m_active     = true;
-    bool m_selected   = false;
+    int  m_query_size   = 0;
+    int  m_offset       = 0;
+    int  m_offset_range = 0;
+    bool m_active       = true;
+    bool m_selected     = false;
+
 
 public:
-    bool        is_active();
-    bool        is_selected();
-    int         get_offset();
-    std::string get_query();
+    bool        isActive();
+    bool        isSelected();
+    int         getOffset();
+    std::string getQuery();
     void        handle(char c);
+    void        setOffsetRange(int offset_range);
+    void        scrollOffset(int delta);
 };
 
 #endif
