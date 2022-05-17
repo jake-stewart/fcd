@@ -1,31 +1,73 @@
 #include "../include/source.hpp"
 #include "../include/util.hpp"
-#include "../include/levenshtein.h"
+#include <cstdlib>
 
-Source::Source(std::string name, std::string path, int color) {
-    m_name = name;
-    m_words = split(to_lower(name), ' ');
-    m_path = path;
+void Source::setHeuristic(int heuristic) {
+    m_heuristic = heuristic;
+}
+
+void Source::setColor(int color) {
     m_color = color;
-    m_heuristic = 0;
 }
 
 void Source::calcHeuristic(
         std::string& query,
         std::vector<std::string>& words
 ) {
-    m_heuristic = levenshtein(query.c_str(), m_name.c_str());
+    m_heuristic = m_name.size() - (m_history * 10);
 
-    if (m_name.find(query) != std::string::npos) {
-        m_heuristic -= 10000;
+    int pos = m_lower_name.find(query);
+    if (pos != std::string::npos) {
+        if (pos == 0) {
+            m_heuristic -= 50;
+        }
+        m_heuristic -= 100;
     }
 
-    for (std::string word : words) {
-        for (std::string comp_word : m_words) {
-            if (comp_word.rfind(word, 0) == 0) {
-                m_heuristic -= 80;
+    else if (words.size()) {
+        int j = 0;
+        int i = 0;
+        for (i = 0; i < m_words.size(); i++) {
+            int pos = m_words[i].find(words[j]);
+            if (pos == std::string::npos) {
+                continue;
+            }
+            j++;
+            if (j == words.size()) {
+                break;
             }
         }
+        if (j != words.size() || i == m_words.size()) {
+            m_heuristic = INT_MAX;
+            return;
+        }
+    }
+
+    int last_j = 0;
+
+    for (int i = 0; i < words.size(); i++) {
+        float max_heuristic = 0;
+        for (int j = last_j; j < m_words.size(); j++) {
+            int pos = m_words[j].find(words[i]);
+            if (pos != std::string::npos) {
+                last_j = j;
+                float heuristic = 1;
+                if (pos == 0) {
+                    heuristic += 200;
+                }
+                heuristic = (
+                    (heuristic * 200.0) // * (1.0 + (comp_word.size()) * 0.5)
+                );
+                // heuristic -= std::abs(j-i) * 5;
+                if (heuristic < 0) {
+                    heuristic = 0;
+                }
+                if (heuristic > max_heuristic) {
+                    max_heuristic = heuristic;
+                }
+            }
+        }
+        m_heuristic -= max_heuristic;
     }
 }
 
@@ -33,14 +75,37 @@ int Source::getHeuristic() {
     return m_heuristic;
 }
 
-std::string& Source::getPath() {
-    return m_path;
+int Source::getColor() {
+    return m_color;
+}
+
+Source::Source() {
+    m_history = 0;
+    m_color = 4;
+}
+
+void Source::setName(std::string name) {
+    m_name = name;
+    m_lower_name = toLower(m_name);
+    m_words = camelSplitLower(m_name, m_lower_name);
 }
 
 std::string& Source::getName() {
     return m_name;
 }
 
-int Source::getColor() {
-    return m_color;
+void Source::setPath(std::string src_path) {
+    m_path = src_path;
+}
+
+std::string& Source::getPath() {
+    return m_path;
+}
+
+void Source::setHistory(int history) {
+    m_history = history;
+}
+
+int Source::getHistory() {
+    return m_history;
 }

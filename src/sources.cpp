@@ -3,37 +3,60 @@
 
 #include <fstream>
 
-bool compare_sources(Source* l, Source* r) {
-    return (l->getHeuristic() < r->getHeuristic());
+bool compareSources(Source& l, Source& r) {
+    return (l.getHeuristic() < r.getHeuristic());
 }
 
-bool compare_sources_alpha(Source* l, Source* r) {
-    return (l->getName() > r->getName());
+bool compareSourcesAlpha(Source& l, Source& r) {
+    return (l.getName() > r.getName());
+}
+
+bool Sources::hasHeuristic() {
+    return m_has_heuristic;
+}
+
+void Sources::resetHeuristics() {
+    for (Source& source : m_sources) {
+        source.setHeuristic(0);
+    }
 }
 
 void Sources::sort(std::string query) {
-    if (query.size() > 0) {
+    if (query.size() < m_last_query_size) {
+        resetHeuristics();
+    }
+    m_last_query_size = query.size();
 
-        std::string lower = to_lower(query);
-        std::vector<std::string> words = split(lower, ' ');
+    std::string lower = toLower(query);
+    std::vector<std::string> words = camelSplit(lower);
 
-        for (Source *source : m_sources) {
-            source->calcHeuristic(lower, words);
+    if (m_has_heuristic) {
+        for (int i = 0; i < m_sources.size(); i++) {
+            if (m_sources[i].getHeuristic() == INT_MAX) {
+                break;
+            }
+            m_sources[i].calcHeuristic(lower, words);
         }
-
-        std::sort(m_sources.begin(), m_sources.end(), compare_sources);
     }
     else {
-        std::sort(m_sources.begin(), m_sources.end(), compare_sources_alpha);
+        for (Source& source : m_sources) {
+            source.calcHeuristic(lower, words);
+        }
     }
+    std::sort(m_sources.begin(), m_sources.end(), compareSources);
+    m_has_heuristic = true;
 }
 
 size_t Sources::size() {
     return m_sources.size();
 }
 
-Source* Sources::get(int idx) {
+Source& Sources::get(int idx) {
     return m_sources[idx];
+}
+
+void Sources::push_back(Source& source) {
+    return m_sources.push_back(source);
 }
 
 bool Sources::read(char *src_path) {
@@ -44,28 +67,53 @@ bool Sources::read(char *src_path) {
         return false;
     }
 
+    int state = 0;
     std::string name;
+    std::string source_path;
+    int history = 0;
 
     while (std::getline(file, line)) {
         strip(line);
         if (!line.size()) {
             continue;
         }
-        if (name.size()) {
-            m_sources.push_back(new Source(name, line, 4));
-            name.clear();
-        }
-        else {
-            name = line;
-            if (name.size() > m_largest_source_length) {
-                m_largest_source_length = name.size();
-            }
+        switch (state) {
+            case 0:
+                name = line;
+                state++;
+                break;
+            case 1:
+                source_path = line;
+                state++;
+                break;
+            case 2:
+                sscanf(line.c_str(), "%d", &history);
+                Source source;
+                source.setName(name);
+                source.setPath(src_path);
+                source.setColor(4);
+                source.setHistory(history);
+                m_sources.push_back(source);
+                state = 0;
+                break;
         }
     }
     file.close();
     return true;
 }
 
-int Sources::get_largest_source_length() {
-    return m_largest_source_length;
+void Sources::updateHistory(int selected_index) {
+    for (int i = 0; i < m_sources.size(); i++) {
+        Source& source = m_sources[i];
+        if (i == selected_index) {
+            source.setHistory(10);
+        }
+        else {
+            int history = source.getHistory() - 1;
+            if (history < 0) {
+                history = 0;
+            }
+            source.setHistory(history);
+        }
+    }
 }

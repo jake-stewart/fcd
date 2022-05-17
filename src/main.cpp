@@ -1,70 +1,102 @@
 #include "../include/ansi_wrapper.hpp"
-#include "../include/levenshtein.h"
 #include "../include/util.hpp"
 #include "../include/sources.hpp"
+#include "../include/options.hpp"
 #include "../include/input_handler.hpp"
-#include <chrono>
-#include <locale>
-#include <vector>
-#include <iostream>
+#include "../include/project_source_parser.hpp"
+#include "../include/directory_source_parser.hpp"
+
 #include <fstream>
+
+const int MIN_INFO_WIDTH = 25;
+const int MIN_INFO_SPACING = 5;
+const int MAX_INFO_WIDTH = 60;
 
 int          width;
 int          height;
-int          col_width;
 Sources      sources;
+int          n_visible_sources;
 InputHandler input_handler;
 
-void draw_sources(int offset) {
+void drawSources(int offset) {
     if (offset >= height) {
         offset = height - 1;
     }
 
-    int end = sources.size() > height - 1 ? height - 1 : sources.size();
-    for (int i = 0; i < end; i++) {
+    n_visible_sources = sources.size() > height - 1
+        ? height - 1
+        : sources.size();
+
+    int col_width = 0;
+    for (int i = 0; i < n_visible_sources; i++) {
+        if (sources.hasHeuristic() &&
+                sources.get(i).getHeuristic() == INT_MAX) {
+            n_visible_sources = i;
+            break;
+        }
+
+        std::string name = sources.get(i).getName();
+
+        if (name.size() > col_width) {
+            col_width = name.size();
+        }
         if (i == offset) {
             set_color(15);
             // style = curses.A_BOLD | curses.color_pair(4)
         }
-        else if (sources.get(i)->getColor() == -1) {
+        else if (sources.get(i).getColor() == -1) {
             reset_color();
         }
         else {
-            set_color(sources.get(i)->getColor());
+            set_color(sources.get(i).getColor());
         }
         move(0, height - i - 2);
-        printf("%s", sources.get(i)->getName().c_str());
+        printf("%s", name.c_str());
     }
 
-    int x = col_width + 5;
+    int x = col_width + MIN_INFO_SPACING;
     int w = width - x;
-    if (w >= 15) {
-        for (int i = 0; i < end; i++) {
+    if (w > MAX_INFO_WIDTH) {
+        x += w - MAX_INFO_WIDTH;
+        w = MAX_INFO_WIDTH;
+    }
+
+    if (w >= MIN_INFO_WIDTH) {
+        for (int i = 0; i < n_visible_sources; i++) {
+            if (sources.hasHeuristic() &&
+                    sources.get(i).getHeuristic() == INT_MAX) {
+                break;
+            }
             if (i == offset) {
                 set_color(15);
             }
             else {
                 set_color(8);
             }
-            if (sources.get(i)->getPath().size() > w) {
-                const char *str = sources.get(i)->getPath().c_str();
-                int idx = sources.get(i)->getPath().size() - w + 1;
+            if (sources.get(i).getPath().size() > w) {
+                const char *str = sources.get(i).getPath().c_str();
+                int start_idx = sources.get(i).getPath().size() - w + 1;
+                int idx = start_idx;
                 while (str[idx] != '/') {
                    idx++;
+                   if (idx == sources.get(i).getPath().size()) {
+                       idx = start_idx;
+                       break;
+                   }
                 }
-                move(width - sources.get(i)->getPath().size()
+                move(width - sources.get(i).getPath().size()
                         + idx - 1, height - i - 2);
                 printf("…%s", str + idx);
             }
             else {
                 move(x, height - i - 2);
-                printf("%*s\n", w, sources.get(i)->getPath().c_str());
+                printf("%*s\n", w, sources.get(i).getPath().c_str());
             }
         }
     }
 }
 
-void draw_query(std::string query) {
+void drawQuery(std::string query) {
     reset_color();
     move(0, height - 1);
 
@@ -77,50 +109,61 @@ void draw_query(std::string query) {
     }
 }
 
-void draw_screen() {
+void drawScreen() {
     clear_term();
-    draw_sources(input_handler.get_offset());
-    draw_query(input_handler.get_query());
+    drawSources(input_handler.getOffset());
+    drawQuery(input_handler.getQuery());
 }
 
-void on_resize(int w, int h) {
+void onResize(int w, int h) {
     width = w;
     height = h;
-    draw_screen();
+    drawScreen();
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        print_usage();
-        return 1;
+    Options options;
+    options.parseArgs(argc, argv);
+    remove(options.getOutputPath().c_str());
+
+    SourceParser* source_parser;
+    std::string cwd;
+
+    if (options.isProject()) {
+        source_parser = new ProjectSourceParser(
+                options.getConfigPath(), options.getProjectPath());
+    }
+    else {
+        source_parser = new DirectorySourceParser(options.getConfigPath());
     }
 
-    char *src_path = argv[1];
-    char *dest_path = argv[2];
-
-    if (!sources.read(src_path)) {
-        fprintf(stderr, "Error reading %s\n", src_path);
-        return 1;
+    int status = source_parser->readSources();
+    if (status) {
+        return status;
     }
 
-    col_width = sources.get_largest_source_length();
+    sources = source_parser->getSources();
 
-    register_resize_callback(on_resize);
+    register_resize_callback(onResize);
     init_term();
 
-    while (input_handler.is_active()) {
-        sources.sort(input_handler.get_query());
-        draw_screen();
+    while (input_handler.isActive()) {
+        sources.sort(input_handler.getQuery());
+        input_handler.setOffsetRange(n_visible_sources);
+
+        drawScreen();
 
         char input_c;
         read(1, &input_c, 1);
         input_handler.handle(input_c);
     }
 
-    if (input_handler.is_selected()) {
+    if (input_handler.isSelected() && n_visible_sources) {
+        sources.updateHistory(input_handler.getOffset());
+        source_parser->writeHistory(sources);
         std::ofstream file;
-        file.open(dest_path);
-        file << sources.get(input_handler.get_offset())->getPath();
+        file.open(options.getOutputPath());
+        file << sources.get(input_handler.getOffset()).getPath();
         file.close();
     }
 
