@@ -154,27 +154,56 @@ void recursiveGetFiles(
         std::vector<fs::path>& paths,
         std::set<fs::path>&    ignores
 ) {
+    if (!fs::is_directory(root)) {
+        paths.push_back(root);
+        return;
+    }
+
     for (const fs::directory_entry& p : fs::directory_iterator(root)) {
         if (ignores.contains(p.path())) {
             continue;
         }
+
         if (fs::is_directory(p)) {
+            if (p.path().has_filename()) {
+                if (p.path().filename() == "node_modules"
+                 || p.path().filename() == "build"
+                 || p.path().filename() == "target"
+                ) {
+                    continue;
+                }
+            }
             recursiveGetFiles(p, paths, ignores);
         }
         else {
+            if (p.path().has_extension()) {
+                if (p.path().extension() == ".class"
+                 || p.path().extension() == ".xml"
+                 || p.path().extension() == ".jar"
+                 || p.path().extension() == ".prefs"
+                 || p.path().extension() == ".cli"
+                ) {
+                    continue;
+                }
+            }
             paths.push_back(p.path());
         }
     }
 }
 
-bool findLineStartsWith(
+bool findPathRootInFile(
         std::string target,
-        std::string& line,
+        std::string& root,
         std::istream& file
 ) {
-    while (getNonEmptyLine(file, line)) {
-        if (target.starts_with(line)) {
-            return true;
+    while (getNonEmptyLine(file, root)) {
+        while (root.ends_with('/')) {
+            root.resize(root.size() - 1);
+        }
+        if (target.starts_with(root)) {
+            if (target.starts_with(root + "/") || target == root) {
+                return true;
+            }
         }
     }
     return false;

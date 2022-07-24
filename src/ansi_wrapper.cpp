@@ -34,13 +34,16 @@ void set_cursor(bool value) {
     printf(ANSI_ESC "?25%c", value ? 'h' : 'l');
 }
 
+int start_x, start_y;
 
 void restore_term(void) {
     set_alternate_buffer(true);       // enter alternate buffer
     clear_term();                     // clean up the buffer
     set_cursor(true);                 // show the cursor
     set_alternate_buffer(false);      // return to the main buffer
-    tcsetattr(1, TCSANOW, &initial);  // restore original termios params
+    // move(start_x, start_y);
+    tcsetattr(STDIN_FILENO, TCSANOW, &initial);  // restore original termios params
+    // printf("\n");
 }
 
 void on_sig_term(int i) {
@@ -56,19 +59,45 @@ void on_sig_resize(int i) {
         resize_callback(ws.ws_col, ws.ws_row);
 }
 
+struct termios orig_termios;
+
+void die(const char *s) {
+  perror(s);
+  exit(1);
+}
+
+void disable_raw_mode() {
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+  write(STDOUT_FILENO, "\x1b[H", 3);
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) {
+    die("tcsetattr");
+  }
+}
+
+void enable_raw_mode() {
+    // set_alternate_buffer(true);       // enter alternate buffer
+    // clear_term();                     // clean up the buffer
+    // set_cursor(true);                 // show the cursor
+    // set_alternate_buffer(false);      // return to the main buffer
+
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    // atexit(disable_raw_mode);
+    struct termios raw = orig_termios;
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cflag |= (CS8);
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
 
 void init_term(void) {
     // since we're using printf here, which doesn't play nicely
     // with non-canonical mode, we need to turn off buffering.
-    setvbuf(stdout, NULL, _IONBF, 0);
+    // setvbuf(stdout, NULL, _IONBF, 0);
 
-    struct termios t;
-    tcgetattr(1, &t);
-    initial = t;
-    t.c_lflag &= (~ECHO & ~ICANON);
-    tcsetattr(1, TCSANOW, &t);
+    enable_raw_mode();
+    atexit(disable_raw_mode);
 
-    atexit(restore_term);
     signal(SIGWINCH, on_sig_resize);
     signal(SIGTERM, on_sig_term);
     signal(SIGINT, on_sig_term);
@@ -81,4 +110,48 @@ void init_term(void) {
 
 void register_resize_callback(void (*func)(int, int)) {
     resize_callback = func;
+}
+
+// credit: https://stackoverflow.com/a/50888457
+int get_pos(int *x, int *y) {
+    char buf[30]={0};
+    int ret, i, pow;
+    char ch;
+
+    *x = 0;
+    *y = 0;
+
+    struct termios term, restore;
+
+    tcgetattr(0, &term);
+    tcgetattr(0, &restore);
+    term.c_lflag &= ~(ICANON|ECHO);
+    tcsetattr(0, TCSANOW, &term);
+
+    write(1, "\033[6n", 4);
+
+    for( i = 0, ch = 0; ch != 'R'; i++ )
+    {
+        ret = read(0, &ch, 1);
+
+        if ( !ret ) {
+            tcsetattr(0, TCSANOW, &restore);
+            return 1;
+        }
+        buf[i] = ch;
+    }
+
+    if (i < 2) {
+        tcsetattr(0, TCSANOW, &restore);
+        return(1);
+    }
+
+    for( i -= 2, pow = 1; buf[i] != ';'; i--, pow *= 10)
+        *x = *x + ( buf[i] - '0' ) * pow;
+
+    for( i-- , pow = 1; buf[i] != '['; i--, pow *= 10)
+        *y = *y + ( buf[i] - '0' ) * pow;
+
+    tcsetattr(0, TCSANOW, &restore);
+    return 0;
 }

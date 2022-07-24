@@ -6,10 +6,6 @@ void Source::setHeuristic(int heuristic) {
     m_heuristic = heuristic;
 }
 
-void Source::setColor(int color) {
-    m_color = color;
-}
-
 void Source::calcHeuristic(
         std::string& query,
         std::vector<std::string>& words
@@ -75,13 +71,8 @@ int Source::getHeuristic() {
     return m_heuristic;
 }
 
-int Source::getColor() {
-    return m_color;
-}
-
 Source::Source() {
     m_history = 0;
-    m_color = 4;
 }
 
 void Source::setName(std::string name) {

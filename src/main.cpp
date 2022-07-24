@@ -1,4 +1,3 @@
-#include "../include/ansi_wrapper.hpp"
 #include "../include/util.hpp"
 #include "../include/sources.hpp"
 #include "../include/options.hpp"
@@ -6,17 +5,28 @@
 #include "../include/project_source_parser.hpp"
 #include "../include/directory_source_parser.hpp"
 
+#include <curses.h>
 #include <fstream>
 
 const int MIN_INFO_WIDTH = 25;
 const int MIN_INFO_SPACING = 5;
 const int MAX_INFO_WIDTH = 60;
 
+WINDOW *window;
+
 int          width;
 int          height;
 Sources      sources;
 int          n_visible_sources;
 InputHandler input_handler;
+
+enum Colors {
+    COLOR_SOURCE = 1,
+    COLOR_SELECTED_SOURCE,
+    COLOR_PATH,
+    COLOR_SELECTED_PATH,
+    COLOR_SEARCH,
+};
 
 void drawSources(int offset) {
     if (offset >= height) {
@@ -41,17 +51,13 @@ void drawSources(int offset) {
             col_width = name.size();
         }
         if (i == offset) {
-            set_color(15);
-            // style = curses.A_BOLD | curses.color_pair(4)
-        }
-        else if (sources.get(i).getColor() == -1) {
-            reset_color();
+            color_set(COLOR_SELECTED_SOURCE, nullptr);
         }
         else {
-            set_color(sources.get(i).getColor());
+            color_set(COLOR_SOURCE, nullptr);
         }
-        move(0, height - i - 2);
-        printf("%s", name.c_str());
+        move(height - i - 2, 0);
+        addstr(name.c_str());
     }
 
     int x = col_width + MIN_INFO_SPACING;
@@ -68,10 +74,10 @@ void drawSources(int offset) {
                 break;
             }
             if (i == offset) {
-                set_color(15);
+                color_set(COLOR_SELECTED_PATH, nullptr);
             }
             else {
-                set_color(8);
+                color_set(COLOR_PATH, nullptr);
             }
             if (sources.get(i).getPath().size() > w) {
                 const char *str = sources.get(i).getPath().c_str();
@@ -84,44 +90,47 @@ void drawSources(int offset) {
                        break;
                    }
                 }
-                move(width - sources.get(i).getPath().size()
-                        + idx - 1, height - i - 2);
-                printf("…%s", str + idx);
+                move(height - i - 2, width - sources.get(i).getPath().size() + idx - 1);
+                addstr("…");
+                addstr(str + idx);
             }
             else {
-                move(x, height - i - 2);
-                printf("%*s\n", w, sources.get(i).getPath().c_str());
+                move(height - i - 2, width - sources.get(i).getPath().size());
+                addstr(sources.get(i).getPath().c_str());
             }
         }
     }
 }
 
 void drawQuery(std::string query) {
-    reset_color();
-    move(0, height - 1);
+    color_set(COLOR_SEARCH, nullptr);
+    move(height - 1, 0);
+    addstr("> ");
 
     if (query.size() + 3 >= width) {
         int idx = query.size() - width + 3;
-        printf("> %.*s", width - 3, query.c_str() + idx);
+        addstr(query.c_str() + idx);
     }
     else {
-        printf("> %.*s", (int)query.size(), query.c_str());
+        addstr(query.c_str());
     }
 }
 
 void drawScreen() {
-    clear_term();
+    clear();
     drawSources(input_handler.getOffset());
     drawQuery(input_handler.getQuery());
 }
 
-void onResize(int w, int h) {
-    width = w;
-    height = h;
+void onResize() {
+    getmaxyx(window, height, width);
     drawScreen();
 }
 
 int main(int argc, char **argv) {
+    // enable unicode
+    setlocale(LC_ALL, "");
+
     Options options;
     options.parseArgs(argc, argv);
     remove(options.getOutputPath().c_str());
@@ -144,8 +153,18 @@ int main(int argc, char **argv) {
 
     sources = source_parser->getSources();
 
-    register_resize_callback(onResize);
-    init_term();
+    window = initscr();
+
+    noecho();
+
+    start_color();
+    use_default_colors();
+    init_pair(COLOR_SOURCE, COLOR_BLUE, -1);
+    init_pair(COLOR_SELECTED_SOURCE, COLOR_WHITE, -1);
+    init_pair(COLOR_PATH, COLOR_BLACK + 8, -1);
+    init_pair(COLOR_SELECTED_PATH, -1, -1);
+    init_pair(COLOR_SEARCH, -1, -1);
+    onResize();
 
     while (input_handler.isActive()) {
         sources.sort(input_handler.getQuery());
@@ -153,9 +172,14 @@ int main(int argc, char **argv) {
 
         drawScreen();
 
-        char input_c;
-        read(1, &input_c, 1);
-        input_handler.handle(input_c);
+        int input_c = getch();
+
+        if (input_c == KEY_RESIZE) {
+            onResize();
+        }
+        else {
+            input_handler.handle(input_c);
+        }
     }
 
     if (input_handler.isSelected() && n_visible_sources) {
@@ -167,6 +191,7 @@ int main(int argc, char **argv) {
         file.close();
     }
 
+    endwin();
     return 0;
 }
 

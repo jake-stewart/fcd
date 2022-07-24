@@ -91,7 +91,6 @@ bool Sources::read(char *src_path) {
                 Source source;
                 source.setName(name);
                 source.setPath(src_path);
-                source.setColor(4);
                 source.setHistory(history);
                 m_sources.push_back(source);
                 state = 0;

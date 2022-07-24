@@ -64,7 +64,7 @@ int ProjectSourceParser::readSources() {
         return 1;
     }
 
-    if (!findLineStartsWith(m_project_path, project_root, projects_file)) {
+    if (!findPathRootInFile(m_project_path, project_root, projects_file)) {
         fprintf(stderr, "Could not match project.\n");
         projects_file.close();
         return 1;
