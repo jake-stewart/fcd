@@ -11,7 +11,6 @@ private:
     std::string               m_lower_name;
     std::vector<std::string>  m_words;
     std::string               m_path;
-    int                       m_color;
     int                       m_heuristic;
     int                       m_history;
 
@@ -24,13 +23,11 @@ public:
     int          getHeuristic();
     std::string& getPath();
     std::string& getName();
-    int          getColor();
     int          getHistory();
 
     void        setHeuristic(int heuristic);
     void        setName(std::string name);
     void        setPath(std::string src_path);
-    void        setColor(int color);
     void        setHistory(int history);
 };
 

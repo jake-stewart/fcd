@@ -33,4 +33,6 @@ void restore_term(void);
 void on_sig_term(int i);
 void on_sig_resize(int i);
 
+int get_pos(int *x, int *y);
+
 #endif

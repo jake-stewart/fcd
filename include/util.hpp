@@ -24,8 +24,8 @@ void                     recursiveGetFiles(fs::path               root,
                                            std::vector<fs::path>& paths,
                                            std::set<fs::path>&    ignores);
 
-bool                     findLineStartsWith(std::string target,
-                                            std::string& line,
+bool                     findPathRootInFile(std::string target,
+                                            std::string& root,
                                             std::istream& file);
 fs::path                 expandUserPath(std::string user_path);
 
